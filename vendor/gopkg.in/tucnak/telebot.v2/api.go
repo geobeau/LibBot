@@ -9,6 +9,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
+	"log"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -40,26 +41,27 @@ func (b *Bot) Raw(method string, payload interface{}) ([]byte, error) {
 	return json, nil
 }
 
-func addFileToWriter(writer *multipart.Writer, fieldName string, file interface{}) error {
+func addFileToWriter(writer *multipart.Writer, fieldName string, file File) error {
 	var reader io.Reader
 	var part io.Writer
 	var err error
 	var filename string
 
-	if r, ok := file.(io.Reader); ok {
+	if file.FileReader != nil {
 		// Telegram requires fields to have a filename, otherwise
 		// `Bad Request: wrong URL host` would be returned
-		filename = "empty"
-		reader = r
-	} else if path, ok := file.(string); ok {
-		f, err := os.Open(path)
+		log.Println("Filename", file.FileName)
+		filename = file.FileName
+		reader = file.FileReader
+	} else if file.OnDisk() {
+		f, err := os.Open(file.FilePath)
 		if err != nil {
 			return err
 		}
 		defer f.Close()
 
 		reader = f
-		filename = filepath.Base(path)
+		filename = filepath.Base(file.FilePath)
 	} else {
 		return errors.Errorf("File for field `%v` should be an io.ReadCloser or string", fieldName)
 	}
@@ -79,7 +81,7 @@ func (b *Bot) sendFiles(
 	params map[string]string) ([]byte, error) {
 	// ---
 	body := &bytes.Buffer{}
-	rawFiles := map[string]interface{}{}
+	rawFiles := map[string]File{}
 
 	for name, f := range files {
 		switch {
@@ -88,9 +90,9 @@ func (b *Bot) sendFiles(
 		case f.FileURL != "":
 			params[name] = f.FileURL
 		case f.OnDisk():
-			rawFiles[name] = f.FileLocal
+			rawFiles[name] = f
 		case f.FileReader != nil:
-			rawFiles[name] = f.FileReader
+			rawFiles[name] = f
 		default:
 			return nil, errors.Errorf("sendFiles: File for field %s doesn't exist", name)
 		}
