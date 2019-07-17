@@ -20,6 +20,8 @@ type book struct {
 	title string
 	year string
 	checksum string
+	format string
+	pages string
 }
 
 func extractBooks(resp http.Response) []book {
@@ -43,7 +45,9 @@ func extractBooks(resp http.Response) []book {
 		checksum := r.FindStringSubmatch(infoURL)[1]
 		title := row.Eq(2).Find("a[title]").Eq(0).Text()
 		year := row.Eq(4).Text()
-		books = append(books, book{id, author, title, year, checksum})
+		format := row.Eq(8).Text()
+		pages := row.Eq(5).Text()
+		books = append(books, book{id, author, title, year, checksum, format, pages})
 	})
 	return books
 }
@@ -86,8 +90,8 @@ func formatBookMessage(book book) string {
 	template := 
 		"*%s*\n" +
 		"By _%s_\n" +
-		"%s"
-	message := fmt.Sprintf(template, book.title, book.author, book.year)
+		"%s | %s"
+	message := fmt.Sprintf(template, book.title, book.author, book.year, book.format)
 	return message
 }
 
