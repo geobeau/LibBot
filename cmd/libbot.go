@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"fmt"
 	"github.com/PuerkitoBio/goquery"
 	"net/http"
 
@@ -15,6 +16,7 @@ type book struct {
 	id string
 	author string
 	title string
+	year string
 }
 
 func extractBooks(resp http.Response) []book {
@@ -33,9 +35,19 @@ func extractBooks(resp http.Response) []book {
 			selector.Eq(i).Remove()
 		}
 		title := row.Eq(2).Find("a[title]").Eq(0).Text()
-		books = append(books, book{id, author, title})
+		year := row.Eq(4).Text()
+		books = append(books, book{id, author, title, year})
 	})
 	return books
+}
+
+func formatBookMessage(book book) string {
+	template := 
+		"*%s*\n" +
+		"By _%s_\n" +
+		"%s"
+	message := fmt.Sprintf(template, book.title, book.author, book.year)
+	return message
 }
 
 func searchBooks(query string) []book {
@@ -74,14 +86,20 @@ func main() {
 	b.Handle(tb.OnText, func(m *tb.Message) {
 		log.Println("Received:", m.Text)
 		query := m.Text
+		b.Send(m.Sender, "Searching...")
 		books := searchBooks(query)
+		if len(books) == 0 {
+			b.Send(m.Sender, "No result found")
+			return
+		}
 		for i := range books {
 			log.Println(books[i])
-			b.Send(m.Sender, books[i].author + " | " + books[i].title)
-			if i >= 4 {
+			b.Send(m.Sender, formatBookMessage(books[i]), tb.ModeMarkdown)
+			if i >= 10 {
 				break
 			}
 		}
+
 		
 	})
 	log.Println("Handler started")
