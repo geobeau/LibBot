@@ -22,6 +22,15 @@ type book struct {
 	checksum string
 	format string
 	pages string
+	size string
+	publisher string
+}
+
+type extendedBook struct {
+	book book
+	language string
+	isbn string
+	coverURL string
 }
 
 func extractBooks(resp http.Response) []book {
@@ -47,9 +56,44 @@ func extractBooks(resp http.Response) []book {
 		year := row.Eq(4).Text()
 		format := row.Eq(8).Text()
 		pages := row.Eq(5).Text()
-		books = append(books, book{id, author, title, year, checksum, format, pages})
+		size := row.Eq(7).Text()
+		publisher := row.Eq(3).Text()
+		books = append(books, book{id, author, title, year, checksum, format, pages, size, publisher})
 	})
 	return books
+}
+
+func extractBookInfo(resp http.Response) extendedBook {
+	doc, err := goquery.NewDocumentFromReader(resp.Body)
+	if err != nil {
+	  log.Fatal(err)
+	}
+
+	r, _ := regexp.Compile("libgen.me - (.*)")
+	rawTitle := doc.Find("title").Eq(0).Text()
+	match := r.FindStringSubmatch(rawTitle)
+	title := ""
+	if len(match) > 1 {
+		title = match[1]
+	}
+		
+
+	author := doc.Find(".book-info__lead").Eq(0).Text()
+
+	selector := doc.Find(".book-info__params tr")
+	format := selector.Eq(1).Find("td").Eq(1).Text()
+	publisher := selector.Eq(3).Find("td").Eq(1).Text()
+	language := selector.Eq(4).Find("td").Eq(1).Text()
+	year := selector.Eq(5).Find("td").Eq(1).Text()
+	isbn := selector.Eq(6).Find("td").Eq(1).Text()
+	size := selector.Eq(10).Find("td").Eq(1).Text()
+	pages := selector.Eq(16).Find("td").Eq(1).Text()
+
+	coverURL := "https://libgen.me" + doc.Find(".book-cover img").Eq(0).AttrOr("src", "")
+	log.Println(coverURL)
+	bookData := book{"", author, title, year, "", format, pages, size, publisher}
+	bookInfoData := extendedBook{bookData, language, isbn, coverURL}
+	return bookInfoData
 }
 
 func extractDownloadURL(resp http.Response) string {
@@ -85,6 +129,20 @@ func getBookFile(checksum string) (*http.Response, error) {
 	return resp, nil
 }
 
+func fetchBookInfo(id string) (extendedBook, error) {
+	apiBaseURL := "https://libgen.me/item/detail/id/%s" 
+	apiURL := fmt.Sprintf(apiBaseURL, id)
+	log.Println("Fetching: ", apiURL)
+	resp, err := http.Get(apiURL)
+	if err != nil {
+		log.Println("Failed to query URL: ", apiURL)
+		return extendedBook{}, err
+	} else {}
+
+	extendedBookData := extractBookInfo(*resp)
+	return extendedBookData, nil
+}
+
 
 func formatBookMessage(book book) string {
 	template := 
@@ -92,6 +150,22 @@ func formatBookMessage(book book) string {
 		"By _%s_\n" +
 		"%s | %s"
 	message := fmt.Sprintf(template, book.title, book.author, book.year, book.format)
+	return message
+}
+
+func formatInfoBookMessage(extendedBookData extendedBook) string {
+	template := 
+		"Title: *%s*\n" +
+		"Author: _%s_\n" +
+		"Year: %s\n" +
+		"Format: %s\n" +
+		"Pages: %s\n" +
+		"Publisher: %s\n" +
+		"Language: %s\n" +
+		"ISBN: %s\n"
+	book := extendedBookData.book
+	message := fmt.Sprintf(template, book.title, book.author, book.year, book.format,
+		book.pages, book.publisher, extendedBookData.language, extendedBookData.isbn)
 	return message
 }
 
@@ -132,6 +206,24 @@ func main() {
 		Unique: "download_button",
 		Text: "Download",
 	}
+	infoButton := tb.InlineButton{
+		Unique: "info_button",
+		Text: "More info",
+	}
+
+	b.Handle(&infoButton, func(c *tb.Callback) {
+		b.Respond(c, &tb.CallbackResponse{Text: "Fetching more data..."})
+		log.Println("Fetching more details about: ", c.Data)
+		extendedBookData, err := fetchBookInfo(c.Data)
+		if err != nil {
+			log.Println("Failed to query URL: ", err)
+			return
+		}
+		message := formatInfoBookMessage(extendedBookData)
+		p := &tb.Photo{File: tb.FromURL(extendedBookData.coverURL)}
+		p.Caption = message
+		b.Send(c.Sender, p, tb.ModeMarkdown)
+	})
 
 	b.Handle(&downloadButton, func(c *tb.Callback) {
 		b.Respond(c, &tb.CallbackResponse{Text: "Downloading..."})
@@ -156,8 +248,9 @@ func main() {
 		for i := range books {
 			log.Println(books[i])
 			downloadButton.Data = books[i].checksum
+			infoButton.Data = books[i].id
 			inlineButtons := [][]tb.InlineButton{
-				[]tb.InlineButton{downloadButton},
+				[]tb.InlineButton{infoButton, downloadButton},
 			}
 			b.Send(m.Sender, formatBookMessage(books[i]), tb.ModeMarkdown, &tb.ReplyMarkup{
 				InlineKeyboard: inlineButtons,
