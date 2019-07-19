@@ -137,7 +137,7 @@ func fetchBookInfo(id string) (extendedBook, error) {
 	if err != nil {
 		log.Println("Failed to query URL: ", apiURL)
 		return extendedBook{}, err
-	} else {}
+	}
 
 	extendedBookData := extractBookInfo(*resp)
 	return extendedBookData, nil
