@@ -151,6 +151,7 @@ func fetchBookInfo(checksum string) (extendedBook, error) {
 		return extendedBook{}, err
 	}
 	extendedBookData := extractBookInfo(*resp)
+	extendedBookData.book.checksum = checksum
 	return extendedBookData, nil
 }
 
@@ -233,7 +234,13 @@ func main() {
 		log.Println(extendedBookData.coverURL, message)
 		p := &tb.Photo{File: tb.FromURL(extendedBookData.coverURL)}
 		p.Caption = message
-		b.Send(c.Sender, p, tb.ModeMarkdown)
+		downloadButton.Data = extendedBookData.book.checksum
+		inlineButtons := [][]tb.InlineButton{
+			[]tb.InlineButton{downloadButton},
+		}
+		b.Send(c.Sender, p, tb.ModeMarkdown, &tb.ReplyMarkup{
+			InlineKeyboard: inlineButtons,
+		})
 	})
 
 	b.Handle(&downloadButton, func(c *tb.Callback) {
