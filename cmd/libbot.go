@@ -23,7 +23,6 @@ type book struct {
 	format string
 	pages string
 	size string
-	publisher string
 }
 
 type extendedBook struct {
@@ -57,8 +56,7 @@ func extractBooks(resp http.Response) []book {
 		format := row.Eq(8).Text()
 		pages := row.Eq(5).Text()
 		size := row.Eq(7).Text()
-		publisher := row.Eq(3).Text()
-		books = append(books, book{id, author, title, year, checksum, format, pages, size, publisher})
+		books = append(books, book{id, author, title, year, checksum, format, pages, size})
 	})
 	return books
 }
@@ -69,29 +67,27 @@ func extractBookInfo(resp http.Response) extendedBook {
 	  log.Fatal(err)
 	}
 
-	r, _ := regexp.Compile("libgen.me - (.*)")
-	rawTitle := doc.Find("title").Eq(0).Text()
-	match := r.FindStringSubmatch(rawTitle)
-	title := ""
-	if len(match) > 1 {
-		title = match[1]
+	title := strings.TrimSpace(doc.Find(".itemFullText h1").Eq(0).Text())
+
+	author := strings.TrimSpace(doc.Find(".itemFullText i a").Eq(0).Text())
+
+	selector := doc.Find(".bookDetailsBox").Eq(0)
+
+	// Remove all the spans to make it easy to fetch data
+	selRm := selector.Find("span")
+	for i := range selRm.Nodes {
+		selRm.Eq(i).Remove()
 	}
-		
-
-	author := doc.Find(".book-info__lead").Eq(0).Text()
-
-	selector := doc.Find(".book-info__params tr")
-	format := selector.Eq(1).Find("td").Eq(1).Text()
-	publisher := selector.Eq(3).Find("td").Eq(1).Text()
-	language := selector.Eq(4).Find("td").Eq(1).Text()
-	year := selector.Eq(5).Find("td").Eq(1).Text()
-	isbn := selector.Eq(6).Find("td").Eq(1).Text()
-	size := selector.Eq(10).Find("td").Eq(1).Text()
-	pages := selector.Eq(16).Find("td").Eq(1).Text()
-
-	coverURL := "https://libgen.me" + doc.Find(".book-cover img").Eq(0).AttrOr("src", "")
-	log.Println(coverURL)
-	bookData := book{"", author, title, year, "", format, pages, size, publisher}
+	year := strings.TrimSpace(selector.Find(".property_year").Eq(0).Text())
+	language := strings.TrimSpace(selector.Find(".property_language").Eq(0).Text())
+	pages := strings.TrimSpace(selector.Find(".property_pages").Eq(0).Text())
+	isbn := strings.TrimSpace(selector.Find(".property_isbn").Eq(0).Text())
+	fileData := strings.TrimSpace(selector.Find(".property__file").Eq(0).Text())
+	files := strings.Split(fileData, ",")
+	format := files[0]
+	size := files[1]
+	coverURL := "https:" + doc.Find(".cardBooks .details-book-cover img").Eq(0).AttrOr("src", "")
+	bookData := book{"", author, title, year, "", format, pages, size}
 	bookInfoData := extendedBook{bookData, language, isbn, coverURL}
 	return bookInfoData
 }
@@ -109,6 +105,15 @@ func extractDownloadURL(resp http.Response) string {
 		}
 	})
 	return downloadURL
+}
+
+func extractDataURL(resp http.Response) string {
+	doc, err := goquery.NewDocumentFromReader(resp.Body)
+	if err != nil {
+	  log.Fatal(err)
+	}
+	log.Println("Searching")
+	return doc.Find("td.itemCover a").Eq(0).AttrOr("href", "")
 }
 
 func getBookFile(checksum string) (*http.Response, error) {
@@ -129,16 +134,22 @@ func getBookFile(checksum string) (*http.Response, error) {
 	return resp, nil
 }
 
-func fetchBookInfo(id string) (extendedBook, error) {
-	apiBaseURL := "https://libgen.me/item/detail/id/%s" 
-	apiURL := fmt.Sprintf(apiBaseURL, id)
+func fetchBookInfo(checksum string) (extendedBook, error) {
+	apiBaseURL := "https://b-ok.cc" 
+	apiURL := fmt.Sprintf(apiBaseURL + "/md5/%s", checksum)
 	log.Println("Fetching: ", apiURL)
 	resp, err := http.Get(apiURL)
 	if err != nil {
 		log.Println("Failed to query URL: ", apiURL)
 		return extendedBook{}, err
 	}
-
+	dataURL := extractDataURL(*resp)
+	log.Println("Fetching: ", apiBaseURL + dataURL)
+	resp, err = http.Get(apiBaseURL + dataURL)
+	if err != nil {
+		log.Println("Failed to query URL: ", apiURL)
+		return extendedBook{}, err
+	}
 	extendedBookData := extractBookInfo(*resp)
 	return extendedBookData, nil
 }
@@ -160,12 +171,11 @@ func formatInfoBookMessage(extendedBookData extendedBook) string {
 		"Year: %s\n" +
 		"Format: %s\n" +
 		"Pages: %s\n" +
-		"Publisher: %s\n" +
 		"Language: %s\n" +
 		"ISBN: %s\n"
 	book := extendedBookData.book
 	message := fmt.Sprintf(template, book.title, book.author, book.year, book.format,
-		book.pages, book.publisher, extendedBookData.language, extendedBookData.isbn)
+		book.pages, extendedBookData.language, extendedBookData.isbn)
 	return message
 }
 
@@ -220,6 +230,7 @@ func main() {
 			return
 		}
 		message := formatInfoBookMessage(extendedBookData)
+		log.Println(extendedBookData.coverURL, message)
 		p := &tb.Photo{File: tb.FromURL(extendedBookData.coverURL)}
 		p.Caption = message
 		b.Send(c.Sender, p, tb.ModeMarkdown)
@@ -248,7 +259,7 @@ func main() {
 		for i := range books {
 			log.Println(books[i])
 			downloadButton.Data = books[i].checksum
-			infoButton.Data = books[i].id
+			infoButton.Data = books[i].checksum
 			inlineButtons := [][]tb.InlineButton{
 				[]tb.InlineButton{infoButton, downloadButton},
 			}
