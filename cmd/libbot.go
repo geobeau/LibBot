@@ -1,34 +1,35 @@
 package main
 
 import (
-	"time"
-	"log"
-	"os"
-	"strings"
 	"fmt"
+	"log"
 	"mime"
-	"regexp"
-	"github.com/PuerkitoBio/goquery"
 	"net/http"
+	"os"
+	"regexp"
+	"strings"
+	"time"
+
+	"github.com/PuerkitoBio/goquery"
 
 	tb "gopkg.in/tucnak/telebot.v2"
 )
 
 type book struct {
-	id string
-	author string
-	title string
-	year string
+	id       string
+	author   string
+	title    string
+	year     string
 	checksum string
-	format string
-	pages string
-	size string
+	format   string
+	pages    string
+	size     string
 }
 
 type extendedBook struct {
-	book book
+	book     book
 	language string
-	isbn string
+	isbn     string
 	coverURL string
 }
 
@@ -37,9 +38,9 @@ func extractBooks(resp http.Response) []book {
 
 	doc, err := goquery.NewDocumentFromReader(resp.Body)
 	if err != nil {
-	  log.Fatal(err)
+		log.Fatal(err)
 	}
-	books := []book {}
+	books := []book{}
 	doc.Find("table.c tr:not(:first-child)").Each(func(i int, s *goquery.Selection) {
 		row := s.Find("td")
 		id := row.Eq(0).Text()
@@ -64,7 +65,7 @@ func extractBooks(resp http.Response) []book {
 func extractBookInfo(resp http.Response) extendedBook {
 	doc, err := goquery.NewDocumentFromReader(resp.Body)
 	if err != nil {
-	  log.Fatal(err)
+		log.Fatal(err)
 	}
 
 	title := strings.TrimSpace(doc.Find(".itemFullText h1").Eq(0).Text())
@@ -95,7 +96,7 @@ func extractBookInfo(resp http.Response) extendedBook {
 func extractDownloadURL(resp http.Response) string {
 	doc, err := goquery.NewDocumentFromReader(resp.Body)
 	if err != nil {
-	  log.Fatal(err)
+		log.Fatal(err)
 	}
 	downloadURL := ""
 	log.Println("Searching")
@@ -110,7 +111,7 @@ func extractDownloadURL(resp http.Response) string {
 func extractDataURL(resp http.Response) string {
 	doc, err := goquery.NewDocumentFromReader(resp.Body)
 	if err != nil {
-	  log.Fatal(err)
+		log.Fatal(err)
 	}
 	log.Println("Searching")
 	return doc.Find("td.itemCover a").Eq(0).AttrOr("href", "")
@@ -118,7 +119,7 @@ func extractDataURL(resp http.Response) string {
 
 func getBookFile(checksum string) (*http.Response, error) {
 	apiBaseURL := "http://93.174.95.29"
-	apiURL := fmt.Sprintf(apiBaseURL + "/_ads/%s", checksum)
+	apiURL := fmt.Sprintf(apiBaseURL+"/_ads/%s", checksum)
 	resp, err := http.Get(apiURL)
 	if err != nil {
 		log.Println("Failed to query URL: ", apiURL)
@@ -135,8 +136,8 @@ func getBookFile(checksum string) (*http.Response, error) {
 }
 
 func fetchBookInfo(checksum string) (extendedBook, error) {
-	apiBaseURL := "https://b-ok.cc" 
-	apiURL := fmt.Sprintf(apiBaseURL + "/md5/%s", checksum)
+	apiBaseURL := "https://b-ok.cc"
+	apiURL := fmt.Sprintf(apiBaseURL+"/md5/%s", checksum)
 	log.Println("Fetching: ", apiURL)
 	resp, err := http.Get(apiURL)
 	if err != nil {
@@ -144,7 +145,7 @@ func fetchBookInfo(checksum string) (extendedBook, error) {
 		return extendedBook{}, err
 	}
 	dataURL := extractDataURL(*resp)
-	log.Println("Fetching: ", apiBaseURL + dataURL)
+	log.Println("Fetching: ", apiBaseURL+dataURL)
 	resp, err = http.Get(apiBaseURL + dataURL)
 	if err != nil {
 		log.Println("Failed to query URL: ", apiURL)
@@ -155,25 +156,24 @@ func fetchBookInfo(checksum string) (extendedBook, error) {
 	return extendedBookData, nil
 }
 
-
 func formatBookMessage(book book) string {
-	template := 
+	template :=
 		"*%s*\n" +
-		"By _%s_\n" +
-		"%s | %s"
+			"By _%s_\n" +
+			"%s | %s"
 	message := fmt.Sprintf(template, book.title, book.author, book.year, book.format)
 	return message
 }
 
 func formatInfoBookMessage(extendedBookData extendedBook) string {
-	template := 
+	template :=
 		"Title: *%s*\n" +
-		"Author: _%s_\n" +
-		"Year: %s\n" +
-		"Format: %s\n" +
-		"Pages: %s\n" +
-		"Language: %s\n" +
-		"ISBN: %s\n"
+			"Author: _%s_\n" +
+			"Year: %s\n" +
+			"Format: %s\n" +
+			"Pages: %s\n" +
+			"Language: %s\n" +
+			"ISBN: %s\n"
 	book := extendedBookData.book
 	message := fmt.Sprintf(template, book.title, book.author, book.year, book.format,
 		book.pages, extendedBookData.language, extendedBookData.isbn)
@@ -188,7 +188,7 @@ func searchBooks(query string) []book {
 	resp, err := http.Get(apiURL)
 	if err != nil {
 		log.Println("Failed to query URL: ", apiURL)
-		return []book {}
+		return []book{}
 	}
 	return extractBooks(*resp)
 }
@@ -201,7 +201,7 @@ func main() {
 		log.Fatal("Token is not set, please set BOT_TOKEN env variable")
 		return
 	}
-	
+
 	b, err := tb.NewBot(tb.Settings{
 		Token:  token,
 		Poller: &tb.LongPoller{Timeout: 10 * time.Second},
@@ -215,11 +215,11 @@ func main() {
 
 	downloadButton := tb.InlineButton{
 		Unique: "download_button",
-		Text: "Download",
+		Text:   "Download",
 	}
 	infoButton := tb.InlineButton{
 		Unique: "info_button",
-		Text: "More info",
+		Text:   "More info",
 	}
 
 	b.Handle(&infoButton, func(c *tb.Callback) {
@@ -251,7 +251,10 @@ func main() {
 		telegramFile.FileName = params["filename"]
 		bookFile := &tb.Document{File: telegramFile}
 		log.Println("Sending: ", params["filename"])
-		bookFile.Send(b, c.Sender, nil)
+		_, err := bookFile.Send(b, c.Sender, nil)
+		if err != nil {
+			log.Println("Error:", err)
+		}
 	})
 
 	b.Handle(tb.OnText, func(m *tb.Message) {
@@ -276,7 +279,7 @@ func main() {
 			if i >= 10 {
 				break
 			}
-		}		
+		}
 	})
 
 	log.Println("Handler started")
