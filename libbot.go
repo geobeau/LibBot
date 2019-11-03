@@ -1,13 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"mime"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/geobeau/Libbot/book"
+	"github.com/geobeau/Libbot/converter"
 	"github.com/geobeau/Libbot/scraper"
 	tb "gopkg.in/tucnak/telebot.v2"
 )
@@ -86,16 +89,41 @@ func main() {
 	})
 
 	b.Handle(&downloadButton, func(c *tb.Callback) {
-		b.Respond(c, &tb.CallbackResponse{Text: "Downloading..."})
+		b.Send(c.Sender, "Downloading...")
 		bookResp, _ := scraper.GetBookFile(c.Data)
 		_, params, _ := mime.ParseMediaType(bookResp.Header.Get("Content-Disposition"))
-		telegramFile := tb.FromReader(bookResp.Body)
+
+		buf := new(bytes.Buffer)
+		_, err := buf.ReadFrom(bookResp.Body)
+		if err != nil {
+			log.Print(err)
+		}
+
+		telegramFile := tb.FromReader(bytes.NewReader(buf.Bytes()))
 		telegramFile.FileName = params["filename"]
+
 		bookFile := &tb.Document{File: telegramFile}
 		log.Println("Sending: ", params["filename"])
-		_, err := bookFile.Send(b, c.Sender, nil)
+		b.Send(c.Sender, "Uploading to Telegram...")
+		_, err = bookFile.Send(b, c.Sender, nil)
 		if err != nil {
 			log.Println("Error:", err)
+		}
+		extension := filepath.Ext(params["filename"])
+		if extension == ".epub" {
+			b.Send(c.Sender, "Converting to mobi as well...")
+			filename, content, convertErr := converter.ConvertFile(params["filename"], buf.Bytes())
+			if convertErr != nil {
+				log.Println("Error while converting:", convertErr)
+				b.Send(c.Sender, "Convertion failed :'(")
+			}
+			telegramFile = tb.FromReader(bytes.NewReader(content))
+			telegramFile.FileName = filepath.Base(filename)
+			bookFile = &tb.Document{File: telegramFile}
+			_, err = bookFile.Send(b, c.Sender, nil)
+			if err != nil {
+				log.Println("Error:", err)
+			}
 		}
 	})
 

@@ -5,14 +5,16 @@ Go telegram bot to fetch and convert ebook
 
 You need to set the env `BOT_TOKEN` to your bot token given by botfather
 
+You will need to install `Calibre` (or at least have "ebook-convert")
+
 ```
-go run cmd/libbot.go
+go run .
 ```
 
 # Build Docker image
 
 ```
-GOOS=linux go build cmd/libbot.go
+GOOS=linux go build .
 docker build -t geobeau/libbot:latest .
 ```
 
