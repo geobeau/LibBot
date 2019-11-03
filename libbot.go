@@ -6,8 +6,9 @@ import (
 	"mime"
 	"os"
 	"time"
-	"github.com/geobeau/Libbot/scraper"
+
 	"github.com/geobeau/Libbot/book"
+	"github.com/geobeau/Libbot/scraper"
 	tb "gopkg.in/tucnak/telebot.v2"
 )
 
