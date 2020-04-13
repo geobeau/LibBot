@@ -123,7 +123,7 @@ func GetBookFile(id string) (*http.Response, error) {
 
 // SearchBooks search for books
 func SearchBooks(query string) []book.Book {
-	cleanQuery := url.QueryEscape(query)
+	cleanQuery := url.PathEscape(query)
 	apiURL := "https://b-ok.cc/s/" + cleanQuery
 	log.Printf(apiURL)
 	resp, err := http.Get(apiURL)
