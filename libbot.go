@@ -39,7 +39,7 @@ func formatInfoBookMessage(book book.Book) string {
 }
 
 func main() {
-
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	log.Println("Starting libbot")
 	token := os.Getenv("BOT_TOKEN")
 	if token == "" {
@@ -79,24 +79,38 @@ func main() {
 		log.Println(bookMetadata.CoverURL, message)
 		p := &tb.Photo{File: tb.FromURL(bookMetadata.CoverURL)}
 		p.Caption = message
-		downloadButton.Data = bookMetadata.Checksum
+		downloadButton.Data = bookMetadata.ID
 		inlineButtons := [][]tb.InlineButton{
 			[]tb.InlineButton{downloadButton},
 		}
-		b.Send(c.Sender, p, tb.ModeMarkdown, &tb.ReplyMarkup{
+		_, err = b.Send(c.Sender, p, tb.ModeMarkdown, &tb.ReplyMarkup{
 			InlineKeyboard: inlineButtons,
 		})
+		if err != nil {
+			log.Println("Failed to upload to telegram: ", err)
+			return
+		}
 	})
 
 	b.Handle(&downloadButton, func(c *tb.Callback) {
 		b.Send(c.Sender, "Downloading...")
-		bookResp, _ := scraper.GetBookFile(c.Data)
+		bookMetadata, err := scraper.FetchBookMetadata(c.Data)
+		if err != nil {
+			log.Println("Failed to query URL: ", err)
+			return
+		}
+		bookResp, err := scraper.GetBookFile(bookMetadata.ID)
+		if err != nil {
+			log.Print(err)
+			return
+		}
 		_, params, _ := mime.ParseMediaType(bookResp.Header.Get("Content-Disposition"))
 
 		buf := new(bytes.Buffer)
-		_, err := buf.ReadFrom(bookResp.Body)
+		_, err = buf.ReadFrom(bookResp.Body)
 		if err != nil {
 			log.Print(err)
+			return
 		}
 
 		telegramFile := tb.FromReader(bytes.NewReader(buf.Bytes()))
@@ -138,8 +152,8 @@ func main() {
 		}
 		for i := range books {
 			log.Println(books[i])
-			downloadButton.Data = books[i].Checksum
-			infoButton.Data = books[i].Checksum
+			downloadButton.Data = books[i].ID
+			infoButton.Data = books[i].ID
 			inlineButtons := [][]tb.InlineButton{
 				[]tb.InlineButton{infoButton, downloadButton},
 			}
