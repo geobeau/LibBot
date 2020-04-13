@@ -24,16 +24,11 @@ func ExtractBookMetadata(resp http.Response) book.Book {
 
 	author := strings.TrimSpace(doc.Find(".itemFullText i a").Eq(0).Text())
 
-	selector := doc.Find(".bookDetailsBox").Eq(0)
+	selector := doc.Find(".bookDetailsBox")
 
-	// Remove all the spans to make it easy to fetch data
-	selRm := selector.Find("span")
-	for i := range selRm.Nodes {
-		selRm.Eq(i).Remove()
-	}
 	year := strings.TrimSpace(selector.Find(".property_year .property_value").Eq(0).Text())
 	language := strings.TrimSpace(selector.Find(".property_language .property_value").Eq(0).Text())
-	pages := strings.TrimSpace(selector.Find(".property_pages .property_value").Eq(0).Text())
+	pages := selector.Find(".property_pages span").Eq(0).Text()
 	isbn := strings.TrimSpace(selector.Find(".property_isbn .property_value").Eq(0).Text())
 	fileData := strings.TrimSpace(selector.Find(".property__file .property_value").Eq(0).Text())
 	files := strings.Split(fileData, ",")

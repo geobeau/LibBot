@@ -19,8 +19,8 @@ func formatBookMessage(book book.Book) string {
 	template :=
 		"*%s*\n" +
 			"By _%s_\n" +
-			"%s | %s"
-	message := fmt.Sprintf(template, book.Title, book.Author, book.Year, book.Format)
+			"%s | %s | %s"
+	message := fmt.Sprintf(template, book.Title, book.Author, book.Year, book.Format, book.Size)
 	return message
 }
 
