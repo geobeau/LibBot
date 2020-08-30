@@ -13,11 +13,20 @@ go run .
 
 # Build Docker image
 
+## Build for linux
+
 ```
 GOOS=linux go build .
 docker build -t geobeau/libbot:latest .
 ```
+## Build for linux - arm
 
+```
+GOOS=linux GOARCH=arm go build .
+docker build -t geobeau/libbot:latest .
+```
+
+## Push
 ```
 docker push geobeau/libbot:latest
 ```
