@@ -12,13 +12,13 @@ import (
 )
 
 // ExtractBookMetadata extracts metadata from a webpage
-func ExtractBookMetadata(resp http.Response) book.Book {
+func ExtractBookMetadata(resp http.Response, id string) book.Book {
 	doc, err := goquery.NewDocumentFromReader(resp.Body)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	id := doc.Find("a.dlButton").Eq(0).AttrOr("href", "")
+	url := doc.Find("a.dlButton").Eq(0).AttrOr("href", "")
 
 	title := strings.TrimSpace(doc.Find(".itemFullText h1").Eq(0).Text())
 
@@ -35,7 +35,7 @@ func ExtractBookMetadata(resp http.Response) book.Book {
 	format := files[0]
 	size := files[1]
 	coverURL := doc.Find(".cardBooks .details-book-cover img").Eq(0).AttrOr("src", "")
-	bookMetadata := book.Book{id, author, title, year, "", format, pages, size, language, isbn, coverURL}
+	bookMetadata := book.Book{id, author, title, year, url, format, pages, size, language, isbn, coverURL}
 	return bookMetadata
 }
 
@@ -103,8 +103,7 @@ func FetchBookMetadata(id string) (book.Book, error) {
 		log.Println("Failed to query URL: ", apiURL)
 		return book.Book{}, err
 	}
-	bookMetadata := ExtractBookMetadata(*resp)
-	bookMetadata.Checksum = id
+	bookMetadata := ExtractBookMetadata(*resp, id)
 	return bookMetadata, nil
 }
 

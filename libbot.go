@@ -38,6 +38,10 @@ func formatInfoBookMessage(book book.Book) string {
 	return message
 }
 
+func logUser(user *tb.User) {
+	log.Printf("Request from: %s %s / %s", user.FirstName, user.LastName, user.Username)
+}
+
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	log.Println("Starting libbot")
@@ -68,6 +72,7 @@ func main() {
 	}
 
 	b.Handle(&infoButton, func(c *tb.Callback) {
+		logUser(c.Sender)
 		b.Respond(c, &tb.CallbackResponse{Text: "Fetching more data..."})
 		log.Println("Fetching more details about: ", c.Data)
 		bookMetadata, err := scraper.FetchBookMetadata(c.Data)
@@ -93,19 +98,25 @@ func main() {
 	})
 
 	b.Handle(&downloadButton, func(c *tb.Callback) {
+		logUser(c.Sender)
 		b.Send(c.Sender, "Downloading...")
 		bookMetadata, err := scraper.FetchBookMetadata(c.Data)
 		if err != nil {
 			log.Println("Failed to query URL: ", err)
 			return
 		}
-		bookResp, err := scraper.GetBookFile(bookMetadata.ID)
+		bookResp, err := scraper.GetBookFile(bookMetadata.Checksum)
 		if err != nil {
 			log.Print(err)
 			return
 		}
-		_, params, _ := mime.ParseMediaType(bookResp.Header.Get("Content-Disposition"))
+		_, params, err := mime.ParseMediaType(bookResp.Header.Get("Content-Disposition"))
 
+		if err != nil {
+			log.Print(err)
+			b.Send(c.Sender, "Failed... (probably too many books downloaded today)")
+			return
+		}
 		buf := new(bytes.Buffer)
 		_, err = buf.ReadFrom(bookResp.Body)
 		if err != nil {
@@ -142,6 +153,7 @@ func main() {
 	})
 
 	b.Handle(tb.OnText, func(m *tb.Message) {
+		logUser(m.Sender)
 		log.Println("Received:", m.Text)
 		query := m.Text
 		b.Send(m.Sender, "Searching...")
