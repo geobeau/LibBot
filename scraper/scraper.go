@@ -95,7 +95,7 @@ func ExtractDetailedMetadataURL(resp http.Response) string {
 
 // FetchBookMetadata crawl and parse the correct api to fetch book metadata
 func FetchBookMetadata(id string) (book.Book, error) {
-	apiBaseURL := "https://b-ok.cc%s"
+	apiBaseURL := "https://1lib.education%s"
 	apiURL := fmt.Sprintf(apiBaseURL, id)
 	log.Println(apiURL)
 	resp, err := http.Get(apiURL)
@@ -109,7 +109,7 @@ func FetchBookMetadata(id string) (book.Book, error) {
 
 // GetBookFile Download the book file
 func GetBookFile(id string) (*http.Response, error) {
-	apiBaseURL := "https://b-ok.cc%s"
+	apiBaseURL := "https://1lib.education%s"
 	downloadURL := fmt.Sprintf(apiBaseURL, id)
 	log.Println("Downloading: ", downloadURL)
 	resp, err := http.Get(downloadURL)
@@ -123,7 +123,7 @@ func GetBookFile(id string) (*http.Response, error) {
 // SearchBooks search for books
 func SearchBooks(query string) []book.Book {
 	cleanQuery := url.PathEscape(query)
-	apiURL := "https://b-ok.cc/s/" + cleanQuery
+	apiURL := "https://1lib.education/s/" + cleanQuery
 	log.Printf(apiURL)
 	resp, err := http.Get(apiURL)
 	if err != nil {
