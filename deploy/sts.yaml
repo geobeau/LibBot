@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: libbot
+spec:
+  selector:
+    matchLabels:
+      app: libbot
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: libbot
+    spec:
+      containers:
+      - name: libbot
+        image: geobeau/libbot:latest
+      env:
+      - name: BOT_TOKEN
+        value: "my_token"
